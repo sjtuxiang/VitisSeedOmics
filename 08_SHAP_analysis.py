@@ -15,7 +15,7 @@ import statsmodels.api as sm
 import warnings
 warnings.filterwarnings("ignore")
 
-# --- 模型与预处理库 ---
+# --- Modeling and preprocessing libraries ---
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.feature_selection import f_classif
@@ -26,7 +26,7 @@ from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
 # ==========================================
-# 1. 全局配置与参数设置
+# 1. Global configuration and parameter settings
 # ==========================================
 CONFIG = {
     "data_file": "data.txt",         
@@ -39,7 +39,7 @@ CONFIG = {
     "title_fontsize": 16,
     "tick_fontsize": 14,
     
-    # === 决定进入最终分析与所有图表展示的核心物质数量 ===
+    # === Number of top features retained for the final analysis and visualizations ===
     "top_k_features_to_retain": 50,  
     "fig5_max_features": 20,         
     "fig7_max_features": 20,         
@@ -67,14 +67,14 @@ CONFIG = {
 }
 
 import logging
-# 关闭 Matplotlib 的字体查找警告
+# Suppress Matplotlib font lookup warnings
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 plt.rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'Liberation Sans', 'DejaVu Sans', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['pdf.fonttype'] = 42
 
 # ==========================================
-# 2. 辅助函数
+# 2. Helper functions
 # ==========================================
 def save_figure(fig, filename_base, subfolder=None):
     save_dir = CONFIG["output_dir"]
@@ -88,7 +88,7 @@ def save_figure(fig, filename_base, subfolder=None):
     plt.close(fig)
 
 # ==========================================
-# 3. 核心分析类构建
+# 3. Core analysis class
 # ==========================================
 class XGBoostXAIAnalyzer:
     def __init__(self):
@@ -101,43 +101,43 @@ class XGBoostXAIAnalyzer:
         self.X_train_processed = None
 
     def prepare_data(self):
-        print("正在读取代谢组学数据表...")
+        print("Reading the metabolomics data table...")
         df = pd.read_csv(CONFIG["data_file"], sep='\t')
         
-        # 精准提取仅包含 Vv_ 和 Vh_ 的样本列，绕开所有文字注释列
+        # Select only sample columns containing Vv_ or Vh_ and exclude annotation columns
         sample_cols = [col for col in df.columns if 'Vv_' in str(col) or 'Vh_' in str(col)]
         
-        # 提取第一列(Compounds)作为特征名
+        # Use the first column (Compounds) as feature names
         raw_names = df.iloc[:, 0].values.tolist()
         self.feature_names = [str(name).replace('[', '(').replace(']', ')').replace('<', '_') for name in raw_names]
         
-        # 转置数据，并强制转换为 float 浮点型
+        # Transpose the data and convert all values to floating-point numbers
         self.X = pd.DataFrame(df[sample_cols].values.T, columns=self.feature_names).astype(float)
         
-        # 动态生成标签：只要列名中包含 'Vh' 就视为 1，包含 'Vv' 视为 0
+        # Generate class labels dynamically: Vh samples are class 1 and Vv samples are class 0
         labels = [1 if 'Vh' in str(col) else 0 for col in sample_cols]
         self.y = pd.Series(labels)
         
-        # 剔除零方差特征（防止缩放和方差分析时报错）
+        # Remove zero-variance features to prevent errors during scaling and ANOVA
         variances = self.X.var()
         non_zero_var_cols = variances[variances > 0].index
         self.X = self.X[non_zero_var_cols]
         self.feature_names = self.X.columns.tolist()
         
         self.X_train, self.y_train = self.X, self.y
-        print(f"数据读取完毕。总样本数: {self.X.shape[0]}, 有效特征数量(剔除零方差): {self.X.shape[1]}")
+        print(f"Data loaded successfully. Total samples: {self.X.shape[0]}, valid features after removing zero-variance features: {self.X.shape[1]}")
 
     def ensemble_feature_screening(self):
-        print("🚀 正在使用 ANOVA单变量 + ML模型 进行加权融合特征筛选...")
+        print("馃殌 Performing weighted ensemble feature screening using univariate ANOVA and machine learning models...")
         
         # -----------------------------------------------------------------
-        # 新增核心功能：计算原始数据的均值和 Log2 Fold Change (Log2FC)
+        # Calculate group means and log2 fold change (Log2FC) from the original data
         # -----------------------------------------------------------------
-        # label=1 是 Vh, label=0 是 Vv
+        # Label 1 represents Vh and label 0 represents Vv
         mean_Vh = self.X_train[self.y_train == 1].mean(axis=0)
         mean_Vv = self.X_train[self.y_train == 0].mean(axis=0)
         
-        # 计算 Log2FC，加一个小常数(epsilon)防止除以0或取对数报错
+        # Calculate Log2FC with a small epsilon to prevent division by zero or invalid logarithms
         epsilon = 1e-9
         log2fc = np.log2((mean_Vh + epsilon) / (mean_Vv + epsilon))
         # -----------------------------------------------------------------
@@ -147,18 +147,18 @@ class XGBoostXAIAnalyzer:
 
         importances = pd.DataFrame(index=self.feature_names)
         
-        # 将均值和 Log2FC 记录到表格中
+        # Add group means and Log2FC values to the feature table
         importances["Mean_Vv"] = mean_Vv.values
         importances["Mean_Vh"] = mean_Vh.values
         importances["Log2FC(Vh/Vv)"] = log2fc.values
 
         minmax = MinMaxScaler()
 
-        # 引入单变量统计检验 (ANOVA F-score)
+        # Perform univariate statistical testing using the ANOVA F-score
         f_vals, p_vals = f_classif(X_scaled, self.y_train)
-        f_vals = np.nan_to_num(f_vals) # 防止除零错误产生 NaN
+        f_vals = np.nan_to_num(f_vals) # Replace NaN values caused by division-by-zero errors
         importances["Univariate_F"] = minmax.fit_transform(f_vals.reshape(-1, 1)).flatten()
-        importances["P_Value"] = p_vals # 顺便记录 p-value 供参考
+        importances["P_Value"] = p_vals # Retain P-values for reference
 
         models = {
             "LR": LogisticRegression(penalty='l2', class_weight='balanced', random_state=self.random_state),
@@ -177,7 +177,7 @@ class XGBoostXAIAnalyzer:
             
             importances[name] = minmax.fit_transform(imp.reshape(-1, 1)).flatten()
 
-        # 加权共识得分
+        # Calculate the weighted consensus score
         importances['Consensus_Score'] = (
             importances["Univariate_F"] * 0.75 + 
             importances["LR"] * 0.05 + 
@@ -188,35 +188,35 @@ class XGBoostXAIAnalyzer:
         )
         
         # -----------------------------------------------------------------
-        # 新增核心功能：根据方向进行过滤，只保留 Vh 显著高于 Vv 的物质
+        # Filter by direction and retain only features enriched in Vh relative to Vv
         # -----------------------------------------------------------------
-        # Log2FC > 0 代表 Vh > Vv。
+        # Log2FC > 0 indicates that the feature is more abundant in Vh than in Vv
         up_in_Vh_mask = importances["Log2FC(Vh/Vv)"] > 1
         
-        # 分离出两张表：全量表，以及“仅Vh高”的表
+        # Generate a complete ranking table and a Vh-enriched feature table
         importances_all = importances.sort_values(by='Consensus_Score', ascending=False)
         importances_up_in_Vh = importances[up_in_Vh_mask].sort_values(by='Consensus_Score', ascending=False)
 
         os.makedirs(CONFIG["output_dir"], exist_ok=True)
-        # 保存全量特征供参考
+        # Save the complete feature ranking for reference
         importances_all.to_csv(os.path.join(CONFIG["output_dir"], "MultiModel_Feature_Ranking_ALL.csv"))
-        # 保存过滤后的特征
+        # Save the filtered Vh-enriched features
         importances_up_in_Vh.to_csv(os.path.join(CONFIG["output_dir"], "MultiModel_Feature_Ranking_Vh_Upregulated.csv"))
         
-        print(f"✅ 融合特征筛选完成！过滤前物质总数: {len(importances_all)}，其中 Vh > Vv 的物质数: {len(importances_up_in_Vh)}")
+        print(f"鉁� Ensemble feature screening completed. Total features before filtering: {len(importances_all)}; Vh-enriched features: {len(importances_up_in_Vh)}")
         
-        # 强制只从 Vh > Vv 的物质中提取前 Top K 传入后续的 SHAP 分析
+        # Select the top K Vh-enriched features for downstream SHAP analysis
         top_features = importances_up_in_Vh.index[:CONFIG["top_k_features_to_retain"]].tolist()
         
         if len(top_features) == 0:
-            raise ValueError("没有找到 Vh 含量大于 Vv 的特征，请检查数据！")
+            raise ValueError("No features enriched in Vh relative to Vv were found. Please check the input data.")
 
         self.feature_names = top_features
         self.X_train = self.X_train[top_features]
-        print(f"✅ 已精准截取 Top {len(top_features)} 个 [Vh高表达] 的高价值物质用于后续 SHAP 分析。")
+        print(f"鉁� Selected the top {len(top_features)} Vh-enriched features for downstream SHAP analysis.")
 
     def train_final_model(self):
-        print("正在训练最终解释模型 (XGBoost) - 已启用抗特征垄断机制...")
+        print("Training the final interpretable XGBoost model with feature-dominance controls...")
         xgb_clf = XGBClassifier(
             n_estimators=300,       
             max_depth=2,             
@@ -240,7 +240,7 @@ class XGBoostXAIAnalyzer:
         self.model = self.pipeline.named_steps['classifier']
 
     def calculate_shap(self):
-        print("正在计算 SHAP 及交互值...")
+        print("Calculating SHAP values and SHAP interaction values...")
         scaler = self.pipeline.named_steps['scaler']
         X_scaled = scaler.transform(self.X_train)
         self.X_train_processed = pd.DataFrame(X_scaled, columns=self.feature_names)
@@ -248,11 +248,11 @@ class XGBoostXAIAnalyzer:
         self.explainer = shap.TreeExplainer(self.model)
         self.shap_values_obj = self.explainer(self.X_train_processed)
         self.shap_interaction_values = self.explainer.shap_interaction_values(self.X_train_processed)
-        print("SHAP 计算完成")
+        print("SHAP calculation completed.")
 
-    # ================= 图表绘制部分 =================
+    # ================= Visualization functions =================
     def plot_figure_1(self):
-        print("1/7 正在绘制图1：模型分类性能图...")
+        print("1/7 Generating Figure 1: model classification performance...")
         preds_proba = self.pipeline.predict_proba(self.X_train)[:, 1]
         y_true = self.y_train.values  
         
@@ -272,7 +272,7 @@ class XGBoostXAIAnalyzer:
         save_figure(fig, "Fig1_Classification_Performance")
 
     def plot_figure_2(self):
-        print("2/7 正在绘制图2：全局特征贡献度分析图...")
+        print("2/7 Generating Figure 2: global feature contribution analysis...")
         fig, ax1 = plt.subplots(figsize=(10, 12))
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         sort_inds = np.argsort(mean_abs_shap)[-20:]
@@ -314,7 +314,7 @@ class XGBoostXAIAnalyzer:
         save_figure(fig, "Fig2_Global_Contribution")
 
     def plot_figure_3(self):
-        print("3/7 正在绘制图3：单特征偏依赖图...")
+        print("3/7 Generating Figure 3: individual feature dependence plots...")
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         sort_inds_desc = np.argsort(mean_abs_shap)[::-1][:20]
         folder_name = "Fig3_Dependence_Plots"
@@ -343,7 +343,7 @@ class XGBoostXAIAnalyzer:
             save_figure(fig, f"{rank+1:02d}_{clean_feat}_Dependence", subfolder=folder_name)
 
     def plot_figure_4(self):
-        print("4/7 正在绘制图4：主效应与交互效应对比图...")
+        print("4/7 Generating Figure 4: comparison of main and interaction effects...")
         num_features = min(20, len(self.feature_names))
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         sort_inds = np.argsort(mean_abs_shap)[::-1][:num_features]
@@ -368,7 +368,7 @@ class XGBoostXAIAnalyzer:
         save_figure(fig, "Fig4_Main_vs_Interaction")
 
     def plot_figure_5_7(self):
-        print("5&6/7 正在绘制图5/7：交互矩阵与网络图...")
+        print("5&6/7 Generating Figures 5 and 7: interaction matrix and network...")
         num_top = min(CONFIG["fig5_max_features"], len(self.feature_names))
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         top_inds = np.argsort(mean_abs_shap)[::-1][:num_top]
@@ -384,7 +384,7 @@ class XGBoostXAIAnalyzer:
         
         fig5 = plt.figure(figsize=(12, 10))
         sns.heatmap(pd.DataFrame(inter_matrix, index=top_names_short, columns=top_names_short), 
-                    cmap=CONFIG["shap_cmap"], annot=False, cbar_kws={'label': 'Mean |SHAP Interaction|'}) # annot设为False防止过挤
+                    cmap=CONFIG["shap_cmap"], annot=False, cbar_kws={'label': 'Mean |SHAP Interaction|'}) # Disable annotations to avoid overcrowding
         plt.title("Fig 5: Interaction Matrix", fontweight='bold')
         save_figure(fig5, "Fig5_Interaction_Matrix")
         
@@ -432,7 +432,7 @@ class XGBoostXAIAnalyzer:
         save_figure(fig7, "Fig7_Interaction_Network")
 
     def plot_figure_8(self):
-        print("7/7 正在绘制图8：SHAP 样本热力图...")
+        print("7/7 Generating Figure 8: sample-level SHAP heatmap...")
         fig = plt.figure(figsize=CONFIG["fig8_figsize"])
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         top_idx = np.argsort(mean_abs_shap)[::-1][:CONFIG["fig8_max_display"]]
@@ -448,19 +448,19 @@ class XGBoostXAIAnalyzer:
         save_figure(fig, "Fig8_SHAP_Heatmap")
 
     def plot_figure_10(self):
-        print("正在绘制图10：二维PDP特征依赖轮廓图...")
+        print("Generating Figure 10: two-dimensional partial dependence contour plots...")
         mean_abs_shap = np.abs(self.shap_values_obj.values).mean(axis=0)
         sort_inds = np.argsort(mean_abs_shap)[::-1]
         X_bg_median = self.X_train_processed.median().values
         grid_resolution = 50
         cmap = CONFIG["shap_cmap"]
         
-        # --- 取前 20 个最重要的特征绘制核心的两两交互图 ---
+        # Generate pairwise interaction plots for the 20 most important features
         top_n_for_pdp = 20 
         top_indices = sort_inds[:top_n_for_pdp]
         
         for i in range(len(top_indices)):
-            for j in range(i + 1, len(top_indices)): # i < j 避免生成重复翻转的图
+            for j in range(i + 1, len(top_indices)): # Use i < j to avoid duplicate mirrored plots
                 idx1 = top_indices[i]
                 idx2 = top_indices[j]
                 
@@ -531,7 +531,7 @@ class XGBoostXAIAnalyzer:
         self.plot_figure_8()
         self.plot_figure_10() 
         
-        print(f"🎉 全部模型训练及图表绘制完成！文件已存至 {CONFIG['output_dir']} 目录！")
+        print(f"馃帀 Model training and visualization completed. All files were saved to {CONFIG['output_dir']}.")
 
 if __name__ == "__main__":
     analyzer = XGBoostXAIAnalyzer()
