@@ -5,6 +5,7 @@ This repository contains the principal computational workflows used in the study
 > **Multi-omics and explainable machine learning identify key enzymatic regulators of flavonoid biosynthesis in grape seeds**
 
 The scripts cover graph-pangenome construction, pan-transcriptome indexing, RNA-seq processing, differential expression analysis, orthogroup classification, gene-structure comparison, and explainable machine learning with SHAP interaction analysis.
+
 <img width="3482" height="2479" alt="Graphical abstract" src="https://github.com/user-attachments/assets/88b43b4e-53c0-4504-8a97-09702f62a6bb" />
 
 ## Repository contents
