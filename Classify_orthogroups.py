@@ -20,7 +20,6 @@ def get_category(presence_count, n_species):
     else:
         return "cloud"
 
-
 def main():
     parser = argparse.ArgumentParser(description="Orthogroups pan-genome classification (core/softcore/shell/cloud)")
     parser.add_argument("-c", "--count", required=True, help="Orthogroups.GeneCount.tsv")
