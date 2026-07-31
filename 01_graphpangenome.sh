@@ -27,7 +27,7 @@ fi
 singularity run \
     --bind ${LOCAL_TMP}:${LOCAL_TMP} \
     --bind $(pwd):$(pwd) \
-    cactus_v3.1.4.sif cactus-pangenome \
+    cactus_v3.2.0.sif cactus-pangenome \
     $JOB_STORE \
     $(pwd)/02_Config/vitis_seqfile.txt \
     $RESTART_FLAG \
