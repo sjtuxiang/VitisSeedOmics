@@ -36,7 +36,7 @@ The scripts form five related analysis branches:
 
 ### Graph-pangenome and pan-transcriptome
 
-- Cactus `v3.1.4`
+- Minigraph-Cactus `v3.2.0`
 - Singularity or Apptainer
 - VG toolkit
 - Toil, provided through the Cactus container
@@ -91,7 +91,7 @@ The exact software versions used for a publication-quality reproduction should b
 
 #### Required inputs
 
-- `cactus_v3.1.4.sif`: Cactus container image
+- `cactus_v3.2.0.sif`: Cactus container image
 - `02_Config/vitis_seqfile.txt`: Cactus sequence configuration file
 - Genome assemblies referenced by the sequence configuration file
 - A reference genome named `V148` in the sequence configuration
