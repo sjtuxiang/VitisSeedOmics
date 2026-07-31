@@ -8,7 +8,7 @@ WORKDIR=/dssg/home/xiang/Output
 cd ${WORKDIR}
 
 GRAPH=VitisPan.gbz
-GFF=PN40024.graphnames.gff3
+GFF=Vv.graphnames.gff3
 OUTDIR=${WORKDIR}/RNAseq_graph
 mkdir -p ${OUTDIR}
 
