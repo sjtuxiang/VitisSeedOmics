@@ -1,12 +1,14 @@
 # VitisSeedOmics
 
+Reproducible workflows for graph pangenomics, pan-transcriptomics, multi-omics integration, and explainable machine learning in grape seed flavonoid research.
+
 This repository contains the principal computational workflows used in the study:
 
 > **Multi-omics and explainable machine learning identify key enzymatic regulators of flavonoid biosynthesis in grape seeds**
 
-The scripts cover graph-pangenome construction, pan-transcriptome indexing, RNA-seq processing, differential expression analysis, orthogroup classification, gene-structure comparison, and explainable machine learning with SHAP interaction analysis.
+The scripts cover graph-pangenome construction, pan-transcriptome indexing, RNA-seq processing, differential expression analysis, orthogroup classification, gene-structure comparison, MCScanX-based gene-duplication and collinearity analysis, and explainable machine learning with SHAP interaction analysis.
 
-<img width="3482" height="2479" alt="Graphical abstract" src="https://github.com/user-attachments/assets/88b43b4e-53c0-4504-8a97-09702f62a6bb" />
+<img width="5076" height="2790" alt="VitisSeedOmics_clean_5K_600dpi" src="https://github.com/user-attachments/assets/621022c4-06b8-4eec-998c-699bbb2eea42" />
 
 ## Repository contents
 
@@ -20,15 +22,17 @@ The scripts cover graph-pangenome construction, pan-transcriptome indexing, RNA-
 | `06_classify_orthogroups.py` | Classify orthogroups as core, soft-core, shell, or cloud |
 | `07_plot_genestructure.r` | Compare gene-structure characteristics among pan-genome categories |
 | `08_SHAP_analysis.py` | Perform ensemble feature selection and XGBoost–SHAP interpretation |
+| `09_MCScanX_analysis.sh` | Run batch MCScanX analysis, classify gene-duplication types, and extract collinear anchors |
 
 ## Workflow overview
 
-The scripts form four related analysis branches:
+The scripts form five related analysis branches:
 
 1. **Graph-pangenome branch:** `01_graphpangenome.sh` → `02_pantranscriptome.sh`
 2. **RNA-seq branch:** `03_rnaseq.sh` → `04_DESeq_analysis.r`
 3. **Orthology branch:** `05_orthoFinder.sh` → `06_classify_orthogroups.py` → `07_plot_genestructure.r`
-4. **Explainable machine-learning branch:** `08_SHAP_analysis.py`
+4. **Gene-duplication and collinearity branch:** `09_MCScanX_analysis.sh`
+5. **Explainable machine-learning branch:** `08_SHAP_analysis.py`
 
 ## Software requirements
 
@@ -57,7 +61,12 @@ The scripts form four related analysis branches:
 - DIAMOND
 - MAFFT
 - IQ-TREE 3
+- MCScanX
+- MCScanX `duplicate_gene_classifier`
+- GNU awk
+- SLURM-compatible high-performance computing environment
 - Python 3 with `pandas`
+- Python 3.10 or later for the embedded anchor parser in `09_MCScanX_analysis.sh`
 - R packages: `ggplot2`, `dplyr`, and `gridExtra`
 
 ### Explainable machine learning
@@ -437,6 +446,114 @@ Figures are exported as 300-dpi PNG and editable PDF files. The random seed is f
 
 > **Important:** the current script fits and explains the XGBoost model using all supplied samples. The classification-probability plot therefore describes the fitted dataset and should not be interpreted as independent test-set performance.
 
+### 9. MCScanX gene-duplication and collinearity analysis
+
+`09_MCScanX_analysis.sh` is a SLURM-compatible batch workflow that combines the original MCScanX analysis script and anchor-extraction Python script into one executable file. No separate `anchors.py` file is required.
+
+The workflow automatically scans sample directories matching `V*/` and processes both `hap1` and `hap2` assemblies.
+
+#### Required directory structure
+
+```text
+project/
+├── 09_MCScanX_analysis.sh
+├── V001/
+│   ├── V001.hap1.gff3
+│   ├── V001.hap1.pep.fa
+│   ├── V001.hap2.gff3
+│   └── V001.hap2.pep.fa
+├── V002/
+│   ├── V002.hap1.gff3
+│   ├── V002.hap1.pep.fa
+│   ├── V002.hap2.gff3
+│   └── V002.hap2.pep.fa
+└── ...
+```
+
+For each sample directory, input files must follow:
+
+```text
+<sample>.hap1.gff3
+<sample>.hap1.pep.fa
+<sample>.hap2.gff3
+<sample>.hap2.pep.fa
+```
+
+The GFF3 file must contain `gene` features with an `ID=` attribute in the ninth column. Protein identifiers in the FASTA file should match the gene identifiers used for MCScanX analysis.
+
+#### Analysis steps
+
+For each sample and haplotype, the script:
+
+1. converts GFF3 gene records into the four-column MCScanX GFF format;
+2. builds a DIAMOND protein database;
+3. performs a DIAMOND self-alignment;
+4. runs MCScanX to identify collinear gene blocks;
+5. runs `duplicate_gene_classifier` to classify gene-duplication types;
+6. extracts gene pairs from the MCScanX collinearity file;
+7. writes both simplified and block-aware anchor files;
+8. validates the principal intermediate and final outputs.
+
+The DIAMOND self-alignment uses:
+
+```text
+E-value threshold: 1e-5
+Maximum target sequences per query: 5
+Output format: tabular format 6
+Threads: SLURM_CPUS_PER_TASK, default 20
+```
+
+#### Running the workflow
+
+Submit the job from the project directory:
+
+```bash
+sbatch 09_MCScanX_analysis.sh
+```
+
+The main settings can also be supplied through environment variables:
+
+```bash
+PROJECT_DIR=/path/to/project \
+SAMPLE_GLOB='V*/' \
+sbatch 09_MCScanX_analysis.sh
+```
+
+Configuration variables:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PROJECT_DIR` | Directory containing the sample folders | `SLURM_SUBMIT_DIR` or current directory |
+| `SAMPLE_GLOB` | Pattern used to identify sample directories | `V*/` |
+| `SLURM_CPUS_PER_TASK` | Number of threads used by DIAMOND | `20` |
+
+#### Principal outputs
+
+For a sample named `V001`, the `hap1` analysis generates:
+
+```text
+V001/
+├── V001_hap1.gff
+├── V001_hap1.dmnd
+├── V001_hap1.blast
+├── V001_hap1.collinearity
+├── V001_hap1.anchors.simple
+├── V001_hap1.anchors
+└── additional MCScanX statistics and duplication-classification files
+```
+
+The anchor files contain:
+
+```text
+V001_hap1.anchors.simple:
+geneA	geneB
+
+V001_hap1.anchors:
+geneA	geneB	block_id
+```
+
+Collinearity block numbering starts at `0`. At the end of the run, the script reports the numbers of completed, skipped, and failed sample–haplotype analyses. Missing input files are skipped with warnings, whereas failed analyses produce a nonzero exit status.
+
 ## Reproducibility notes
 
 - Review and update hard-coded input paths before running each script.
@@ -444,6 +561,8 @@ Figures are exported as 300-dpi PNG and editable PDF files. The random seed is f
 - Use raw integer counts, not TPM or FPKM values, as DESeq2 input.
 - Confirm RNA-seq library strandedness before setting `FC_STRAND`.
 - Preserve the Cactus `03_JobStore/` directory when resuming an interrupted graph-pangenome run.
+- Keep GFF3 gene IDs and protein FASTA identifiers consistent before running `09_MCScanX_analysis.sh`.
+- Preserve the sample and haplotype naming convention required by the MCScanX batch workflow.
 - Record software versions, parameters, reference files, and random seeds with each analysis.
 - Large genome graphs, indexes, sequencing reads, and intermediate BAM files are not intended for Git version control.
 
@@ -454,6 +573,8 @@ If you use these scripts, please cite the associated manuscript:
 > *Multi-omics and explainable machine learning identify key enzymatic regulators of flavonoid biosynthesis in grape seeds.*
 
 Author list, journal information, and DOI will be added after publication.
+
+<img width="3482" height="2479" alt="Graphical abstract" src="https://github.com/user-attachments/assets/4dc93238-75e8-46ef-b5c6-0441ef3133a7" />
 
 ## Contact
 
