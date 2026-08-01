@@ -60,7 +60,6 @@ The scripts form five related analysis branches:
 - MAFFT
 - IQ-TREE 3
 - MCScanX
-- MCScanX `duplicate_gene_classifier`
 - GNU awk
 - SLURM-compatible high-performance computing environment
 - Python 3 with `pandas`
