@@ -4,7 +4,7 @@ Reproducible workflows for graph pangenomics, pan-transcriptomics, multi-omics i
 
 This repository contains the principal computational workflows used in the study:
 
-> **Multi-omics and explainable machine learning identify key enzymatic associated with flavonoid biosynthesis in grape seeds**
+> **Multi-omics and explainable machine learning identify key enzymes associated with flavonoid biosynthesis in grape seeds**
 
 <img width="5076" height="2790" alt="VitisSeedOmics_clean_5K_600dpi" src="https://github.com/user-attachments/assets/621022c4-06b8-4eec-998c-699bbb2eea42" />
 
@@ -568,7 +568,7 @@ Collinearity block numbering starts at `0`. At the end of the run, the script re
 
 If you use these scripts, please cite the associated manuscript:
 
-> *Multi-omics and explainable machine learning identify key enzymatic associated with flavonoid biosynthesis in grape seeds*
+> *Multi-omics and explainable machine learning identify key enzymes associated with flavonoid biosynthesis in grape seeds*
 
 Author list, journal information, and DOI will be added after publication.
 
