@@ -571,7 +571,9 @@ If you use these scripts, please cite the associated manuscript:
 
 Author list, journal information, and DOI will be added after publication.
 
-<img width="3482" height="2479" alt="Graphical abstract" src="https://github.com/user-attachments/assets/4dc93238-75e8-46ef-b5c6-0441ef3133a7" />
+<img width="6964" height="4959" alt="Graphical abstract" src="https://github.com/user-attachments/assets/31040ac7-370f-4ade-a525-ff114b8d5952" />
+
+
 
 ## Contact
 
