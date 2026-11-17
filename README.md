@@ -569,7 +569,7 @@ If you use these scripts, please cite the associated manuscript:
 
 > *Multi-omics and explainable machine learning identify key enzymes associated with flavonoid biosynthesis in grape seeds*
 
-Author list, journal information, and DOI will be added after publication.
+https://www.nature.com/articles/s41538-026-01219-2.
 
 <img width="6964" height="4959" alt="Graphical abstract" src="https://github.com/user-attachments/assets/31040ac7-370f-4ade-a525-ff114b8d5952" />
 
